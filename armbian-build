@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+#
+# SPDX-License-Identifier: GPL-2.0
+#
+# This file is a part of the Armbian Build Framework
+# https://github.com/armbian/build/
+
+clear
+
+# Determine system language
+system_language=$(locale | grep LANG | cut -d= -f2)
+
+# More than one command can map to the same handler. In that case, use ARMBIAN_COMMANDS_TO_VARS_DICT for specific vars.
+declare -g -A ARMBIAN_COMMANDS_TO_HANDLERS_DICT=(
+        ["docker"]="docker" # thus requires cli_docker_pre_run and cli_docker_run
+)
+
+# docker
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+
+		["docker-purge"]="docker"
+		["dockerpurge"]="docker"
+		["docker-shell"]="docker"
+		["dockershell"]="docker"
+		["generate-dockerfile"]="docker"
+)
+
+# implemented in cli_requirements_pre_run and cli_requirements_run
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+		["requirements"]="requirements" # implemented in cli_requirements_pre_run and cli_requirements_run
+)
+
+# Given a board/config/exts, dump out the (non-userspace) JSON of configuration
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+		["configdump"]="config_dump_json"
+		["config-dump"]="config_dump_json"
+		["config-dump-json"]="config_dump_json"
+		["config-dump-no-json"]="config_dump_json"
+		)
+# implemented in cli_json_info_pre_run and cli_json_info_run
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+		["inventory"]="json_info"
+		["targets"]="json_info"
+		["targets-dashboard"]="json_info"
+		["targets-composed"]="json_info"
+		["debs-to-repo-json"]="json_info"
+		["gha-matrix"]="json_info"
+		["gha-workflow"]="json_info"
+		["gha-template"]="json_info"
+)
+
+# These probably should be in their own separate CLI commands file, but for now they're together in jsoninfo.
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+
+		["debs-to-repo-download"]="json_info" # implemented in cli_json_info_pre_run and cli_json_info_run
+		["debs-to-repo-reprepro"]="json_info" # implemented in cli_json_info_pre_run and cli_json_info_run
+
+		["kernel-patches-to-git"]="patch_kernel"  # implemented in cli_patch_kernel_pre_run and cli_patch_kernel_run
+		["rewrite-kernel-patches"]="patch_kernel" # implemented in cli_patch_kernel_pre_run and cli_patch_kernel_run
+
+		["build"]="standard_build" # implemented in cli_standard_build_pre_run and cli_standard_build_run
+		["distccd"]="distccd"      # implemented in cli_distccd_pre_run and cli_distccd_run
+		["flash"]="flash"          # implemented in cli_flash_pre_run and cli_flash_run
+)
+
+# TO add new groups if needed
+#ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+#
+#)
+
+
+# EN ARMBIAN_COMMANDS_TO_HANDLERS_DICT Descritions Groups
+declare -A COMMAND_DESCRIPTIONS_EN=(
+    ["docker"]="Manage Docker containers"
+    ["requirements"]="Install system requirements"
+    ["config_dump_json"]="Dump configuration to JSON"
+    ["json_info"]="Display JSON information"
+    ["patch_kernel"]="Apply kernel patches"
+    ["standard_build"]="Perform standard build"
+    ["distccd"]="Set up distccd"
+    ["flash"]="Flash firmware"
+    ["requirements"]="Install system requirements"
+    ["config_dump_json"]="Dump configuration to JSON"
+    ["json_info"]="Display JSON information"
+    ["patch_kernel"]="Apply kernel patches"
+    ["standard_build"]="Perform standard build"
+    ["distccd"]="Set up distccd"
+    ["flash"]="Flash firmware"
+)
+
+
+declare -A COMMAND_DESCRIPTIONS_DE=(
+    ["docker"]="Docker Container verwalten"
+    ["requirements"]="Systemanforderungen installieren"
+    # Fügen Sie hier weitere Befehle auf Deutsch hinzu
+    ["config_dump_json"]="..."
+    ["json_info"]="..."
+    ["patch_kernel"]="..."
+    ["standard_build"]="..."
+    ["distccd"]="..."
+    ["flash"]="..."
+    ["requirements"]="..."
+    ["config_dump_json"]="..."
+    ["json_info"]="..."
+    ["patch_kernel"]="..."
+    ["standard_build"]="..."
+    ["distccd"]="..."
+    ["flash"]="..."
+)
+
+declare -A COMMAND_DESCRIPTIONS_ES=(
+    ["docker"]="Gestionar contenedores Docker"
+    ["requirements"]="Instalar requisitos del sistema"
+    # Agregue más comandos en español aquí
+    ["config_dump_json"]=" ..."
+    ["json_info"]="..."
+    ["patch_kernel"]=" ..."
+    ["standard_build"]=" ..."
+    ["distccd"]="..."
+    ["flash"]="..."
+    ["requirements"]="..."
+    ["config_dump_json"]="..."
+    ["json_info"]="..."
+    ["patch_kernel"]="..."
+    ["standard_build"]="..."
+    ["distccd"]="..."
+    ["flash"]="..."
+)
+
+print_all(){
+    local i=1
+
+    # Set default language to English
+    COMMAND_DESCRIPTIONS=("${COMMAND_DESCRIPTIONS_EN[@]}")
+
+    # Choose array based on system language
+    if [[ $system_language == "de"* ]]; then
+        COMMAND_DESCRIPTIONS=("${COMMAND_DESCRIPTIONS_DE[@]}")
+    elif [[ $system_language == "es"* ]]; then
+        COMMAND_DESCRIPTIONS=("${COMMAND_DESCRIPTIONS_ES[@]}")
+    fi
+
+    for key in "${!ARMBIAN_COMMANDS_TO_HANDLERS_DICT[@]}"; do
+        description=${COMMAND_DESCRIPTIONS[${ARMBIAN_COMMANDS_TO_HANDLERS_DICT[$key]}]}
+        printf '%s %s - %s\n' "${i}" "$key" "$description"
+        ((i++))
+    done
+
+}
+
+[[ $1 == "-t" ]] && print_all | configng-interface -m ;
+[[ -z "$@" ]] && print_all #| configng-interface -m ;
+
+# Restore original system language
+export LANG="$original_language"

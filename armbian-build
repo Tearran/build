@@ -1,151 +1,215 @@
 #!/usr/bin/env bash
 #
+# SPDX-License-Identifier: GPL-2.0
+#
+# This file is a part of the Armbian Build Framework
+# https://github.com/armbian/build/
 
-#set -x
+clear
 
-# Initialise script
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-filename="$(basename "${BASH_SOURCE[0]}")"
+# Determine system language
+system_language=$(locale | grep LANG | cut -d= -f2)
 
-source_data() {
-	# Check if user is already in the working directory
-	# load the source the data file
-	if [ "$script_dir" != "$current_dir" ]; then
-	    #echo -e "\nWarning: Not in working directory:\ncd $script_dir\nOK: Continuing\n\n"
-	    cd "$script_dir" || exit 1
-	    # shellcheck source=/dev/null
-	    source ./lib/functions/cli/commands.sh
-	    # Call the array from lib
-	    armbian_register_commands
-	elif [ "$script_dir" == "$current_dir" ]; then
-	    # shellcheck source=/dev/null
-	    source ./lib/functions/cli/commands.sh
-	    # Call the array from lib
-	    armbian_register_commands
-	else
-		echo "Error: Uknown "
-	fi
-}
+# More than one command can map to the same handler. In that case, use ARMBIAN_COMMANDS_TO_VARS_DICT for specific vars.
+declare -g -A ARMBIAN_COMMANDS_TO_HANDLERS_DICT=(
+        ["docker"]="docker" # thus requires cli_docker_pre_run and cli_docker_run
+)
 
-# This scripts help mesage
+# docker
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
 
-help_message(){
+		["docker-purge"]="docker"
+		["dockerpurge"]="docker"
+		["docker-shell"]="docker"
+		["dockershell"]="docker"
+		["generate-dockerfile"]="docker"
+)
 
-cat << EOF
-Help Usage: ./${filename} [ flag ] | [ OPTION=[var,var] .. ]
+# implemented in cli_requirements_pre_run and cli_requirements_run
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+		["requirements"]="requirements" # implemented in cli_requirements_pre_run and cli_requirements_run
+)
 
-  -h, --help       This help message and list of Build options.
+# Given a board/config/exts, dump out the (non-userspace) JSON of configuration
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+		["configdump"]="config_dump_json"
+		["config-dump"]="config_dump_json"
+		["config-dump-json"]="config_dump_json"
+		["config-dump-no-json"]="config_dump_json"
+		)
+# implemented in cli_json_info_pre_run and cli_json_info_run
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+		["inventory"]="json_info"
+		["targets"]="json_info"
+		["targets-dashboard"]="json_info"
+		["targets-composed"]="json_info"
+		["debs-to-repo-json"]="json_info"
+		["gha-matrix"]="json_info"
+		["gha-workflow"]="json_info"
+		["gha-template"]="json_info"
+)
 
-  -e, --examples   Place holder list of simple/basic Build[OPTIONS] and examples.
+# These probably should be in their own separate CLI commands file, but for now they're together in jsoninfo.
+ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
 
-  -a, --advanced   Possible --flag option to list advanced Build[OPTIONS]
+		["debs-to-repo-download"]="json_info" # implemented in cli_json_info_pre_run and cli_json_info_run
+		["debs-to-repo-reprepro"]="json_info" # implemented in cli_json_info_pre_run and cli_json_info_run
 
-    , --handlers   Temp --flag to List Command Handlers Dictionary.
+		["kernel-patches-to-git"]="patch_kernel"  # implemented in cli_patch_kernel_pre_run and cli_patch_kernel_run
+		["rewrite-kernel-patches"]="patch_kernel" # implemented in cli_patch_kernel_pre_run and cli_patch_kernel_run
 
-    , --variable   Temp --flag to List Variables Dictionary.
+		["build"]="standard_build" # implemented in cli_standard_build_pre_run and cli_standard_build_run
+		["distccd"]="distccd"      # implemented in cli_distccd_pre_run and cli_distccd_run
+		["flash"]="flash"          # implemented in cli_flash_pre_run and cli_flash_run
+)
 
-For more detailed options, consult the examples help message.
+# TO add new groups if needed
+#ARMBIAN_COMMANDS_TO_HANDLERS_DICT+=(
+#
+#)
 
-EOF
-exit 0 ;
 
-}
+# EN ARMBIAN_COMMANDS_TO_HANDLERS_DICT Descritions Groups
+declare -A COMMAND_DESCRIPTIONS_EN=(
+    ["docker"]="Manage Docker containers"
+    ["requirements"]="Install system requirements"
+    ["config_dump_json"]="Dump configuration to JSON"
+    ["json_info"]="Display JSON information"
+    ["patch_kernel"]="Apply kernel patches"
+    ["standard_build"]="Perform standard build"
+    ["distccd"]="Set up distccd"
+    ["flash"]="Flash firmware"
+    ["requirements"]="Install system requirements"
+    ["config_dump_json"]="Dump configuration to JSON"
+    ["json_info"]="Display JSON information"
+    ["patch_kernel"]="Apply kernel patches"
+    ["standard_build"]="Perform standard build"
+    ["distccd"]="Set up distccd"
+    ["flash"]="Flash firmware"
+)
 
-basic_message(){
 
-    echo -e "Usage: ./${filename} [OPTIONS=[VAR,VAR] [...]]"
-# TODO arrays and examples
-cat << EOF
+declare -A COMMAND_DESCRIPTIONS_DE=(
+    ["docker"]="Docker Container verwalten"
+    ["requirements"]="Systemanforderungen installieren"
+    # Fügen Sie hier weitere Befehle auf Deutsch hinzu
+    ["config_dump_json"]="..."
+    ["json_info"]="..."
+    ["patch_kernel"]="..."
+    ["standard_build"]="..."
+    ["distccd"]="..."
+    ["flash"]="..."
+    ["requirements"]="..."
+    ["config_dump_json"]="..."
+    ["json_info"]="..."
+    ["patch_kernel"]="..."
+    ["standard_build"]="..."
+    ["distccd"]="..."
+    ["flash"]="..."
+)
 
-  BUILD_ONLY=["CSV"]           (u-boot, kernel, etc.).default NULL.
+declare -A COMMAND_DESCRIPTIONS_ES=(
+    ["docker"]="Gestionar contenedores Docker"
+    ["requirements"]="Instalar requisitos del sistema"
+    # Agregue más comandos en español aquí
+    ["config_dump_json"]=" ..."
+    ["json_info"]="..."
+    ["patch_kernel"]=" ..."
+    ["standard_build"]=" ..."
+    ["distccd"]="..."
+    ["flash"]="..."
+    ["requirements"]="..."
+    ["config_dump_json"]="..."
+    ["json_info"]="..."
+    ["patch_kernel"]="..."
+    ["standard_build"]="..."
+    ["distccd"]="..."
+    ["flash"]="..."
+)
 
-  CLEAN_LEVEL=["CSV"]          Specify cleaning level (make, debs, etc.).
+set_interface(){
+    local i=0
 
-  REPOSITORY_INSTALL=[unknown] Needed example.
+    # Set default language to English
+    COMMAND_DESCRIPTIONS=("${COMMAND_DESCRIPTIONS_EN[@]}")
 
-  BUILD_MINIMAL=["yes"]        Build a minimal CLI image default no/NULL.
+    # Choose array based on system language
+    if [[ $system_language == "de"* ]]; then
+        COMMAND_DESCRIPTIONS=("${COMMAND_DESCRIPTIONS_DE[@]}")
+    elif [[ $system_language == "es"* ]]; then
+        COMMAND_DESCRIPTIONS=("${COMMAND_DESCRIPTIONS_ES[@]}")
+    fi
 
-  BUILD_DESKTOP=["yes"]        Build an image with a minimal desktop, default no/NULL?.
-
-  EXTERNAL=[unknown]           Needed example.
-
-  BOARD=[unknown]              Needed example.
-
-  BRANCH=[unknown]             Needed example.
-
-  RELEASE=["CSV"]              Needed example.
-
-For more detailed options, consult the TODO: Advanced help message.
-
-EOF
-
-exit 0 ;
-
-}
-
-# Funtion to display advance and detaile options
-advanced_message(){
-
-    echo -e "Usage: ./${filename} [OPTIONS]"
-    source_data
-    echo -e "\nARMBIAN_COMMANDS_TO_HANDLERS_DICT:\n"
+    # Set numbered array
     for key in "${!ARMBIAN_COMMANDS_TO_HANDLERS_DICT[@]}"; do
-        echo -e "  $key -  ${ARMBIAN_COMMANDS_TO_HANDLERS_DICT[$key]}\n"
+        description=${COMMAND_DESCRIPTIONS[${ARMBIAN_COMMANDS_TO_HANDLERS_DICT[$key]}]}
+        help_set+=("$(printf '\t%s  -  %s\n' "$key" "$description")")
+        display_set+=("$(printf '%d %s - %s' "$i" "$key" "$description")")
+        menu_set+=("$(printf '%d %s - %s' "$i" "$key" "$description")")
+        array_set+=("$(printf '%d [%s]=%s' "$i" "$key" "${ARMBIAN_COMMANDS_TO_HANDLERS_DICT[$key]}")")
+        ((++i))
     done
-
-    echo -e "\nARMBIAN_COMMANDS_TO_VARS_DICT:"
-    for key in "${!ARMBIAN_COMMANDS_TO_VARS_DICT[@]}"; do
-        echo -e "  $key  -  ${ARMBIAN_COMMANDS_TO_VARS_DICT[$key]}\n"
-    done
-
-	echo "For more detailed options, consult the full help message."
-
-	exit 0 ;
 
 }
 
-# Display HANDLERS Dictionary
-if [[ "$1" == "--handlers" ]]; then
-    source_data
-    echo "ARMBIAN_COMMANDS_TO_HANDLERS_DICT:"
-    for key in "${!ARMBIAN_COMMANDS_TO_HANDLERS_DICT[@]}"; do
-        echo "$key -> ${ARMBIAN_COMMANDS_TO_HANDLERS_DICT[$key]}"
+see_all(){
+
+	set_interface
+
+    for item in "${display_set[@]}"; do
+        printf '%s\n' "$item"
     done
-    exit 0 ;
 
-# Display VAR Dictionary
-elif [[ "$1" == "--variable" ]]; then
-    source_data
-    echo -e "\nARMBIAN_COMMANDS_TO_VARS_DICT:"
-    for key in "${!ARMBIAN_COMMANDS_TO_VARS_DICT[@]}"; do
-        echo "$key -> ${ARMBIAN_COMMANDS_TO_VARS_DICT[$key]}"
+}
+
+help_all(){
+
+	set_interface
+
+    for item in "${help_set[@]}"; do
+        printf '%s\n' "$item"
     done
-	exit 0 ;
 
-# Use for doc generation such as man pages, markup/down andor html
-elif [[ "$1" == "--hidden" ]]; then
-	echo -e "\nFor DOC generator\n"
-	exit 0 ;
+}
 
-elif [[ "$1" == "--advanced" || "$1" == "-a" ]]; then
-    source_data
-    advanced_message
-	exit 0 ;
+read_all(){
 
-elif [[ "$1" == "--examples" || "$1" == "-e" ]]; then
-    source_data
-    basic_message
-	exit 0 ;
+    set_interface
 
-# Main Help Message
-elif [[ "$1" == "-h" ||  "$1" == "--help" ]]; then
-    source_data
-    help_message
-	exit 0 ;
+    # Print the array
+    for item in "${display_set[@]}"; do
+        echo "$item"
+    done
 
-# Otherwise pass options to ./compile.sh
-else
-    # Pass args to ./compile.sh
-    cd "$script_dir"
-    bash "./compile.sh" "$@"
-fi
+	read -p "Select an option (enter the number): " choice ;
+
+	clear && process_selection "$choice" ;
+
+}
+
+# pre set for tui proposel
+tui_all(){
+
+	set_interface
+
+    # Print the array
+	for item in "${menu_set[@]}"; do
+	    echo "$item"
+	done | configng-interface -m ;
+	
+    process_selection "$1" | configng-interface -o
+}
+
+process_selection(){
+    local selected_item="$1"
+    local option="${array_set[$selected_item]}"
+    echo "${option#* }"
+}
+
+# Generic output
+
+[[ -z "$@" ]] && help_all
+
+[[ "$1" == "-t" ]] && tui_all
+
+[[ "$1" == "-r" ]] && read_all
